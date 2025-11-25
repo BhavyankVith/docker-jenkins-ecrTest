@@ -1,0 +1,101 @@
+pipeline {
+  agent any
+
+  environment {
+    // Customize these (or set as pipeline/job parameters)
+    AWS_REGION      = 'us-east-2'
+    ECR_ACCOUNT_ID  = ''                 // set your AWS account id or pass as parameter
+    ECR_REPO        = 'simple-calculator'// desired ECR repo name
+    IMAGE_NAME      = "${ECR_REPO}"      // local image name
+    TAG             = "${env.BUILD_NUMBER ?: 'latest'}"
+    // ECR registry will be constructed dynamically: <account>.dkr.ecr.<region>.amazonaws.com
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        // if the repo is private, configure Jenkins credentials for Git or use SSH/GitHub App
+        checkout scm
+      }
+    }
+
+    stage('Build Docker image') {
+      steps {
+        script {
+          sh """
+            docker build -t ${IMAGE_NAME}:${TAG} .
+            docker images --format 'table {{.Repository}}\\t{{.Tag}}\\t{{.ID}}'
+          """
+        }
+      }
+    }
+
+    stage('Authenticate to ECR & Ensure Repo') {
+      steps {
+        // aws access key and secret are fetched from Jenkins credentials (username=AWS_ACCESS_KEY_ID, password=AWS_SECRET_ACCESS_KEY)
+        withCredentials([usernamePassword(credentialsId: 'aws-creds', usernameVariable: 'AWS_ACCESS_KEY_ID', passwordVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+          script {
+            env.ECR_REGISTRY = "${ECR_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+            sh """
+              set -euo pipefail
+              echo "Configuring AWS CLI..."
+              mkdir -p ~/.aws
+              cat > ~/.aws/credentials <<-EOC
+              [default]
+              aws_access_key_id = ${AWS_ACCESS_KEY_ID}
+              aws_secret_access_key = ${AWS_SECRET_ACCESS_KEY}
+              EOC
+              cat > ~/.aws/config <<-EOC
+              [default]
+              region = ${AWS_REGION}
+              output = json
+              EOC
+
+              # Ensure ECR repo exists (if not, create it)
+              if aws ecr describe-repositories --repository-names "${ECR_REPO}" >/dev/null 2>&1; then
+                echo "ECR repository ${ECR_REPO} already exists."
+              else
+                echo "Creating ECR repository ${ECR_REPO}..."
+                aws ecr create-repository --repository-name "${ECR_REPO}" --image-scanning-configuration scanOnPush=true || true
+              fi
+
+              # Login Docker to ECR
+              aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+            """
+          }
+        }
+      }
+    }
+
+    stage('Tag & Push to ECR') {
+      steps {
+        script {
+          env.FULL_IMAGE = "${ECR_REGISTRY}/${ECR_REPO}:${TAG}"
+          sh """
+            set -euo pipefail
+            docker tag ${IMAGE_NAME}:${TAG} ${FULL_IMAGE}
+            docker push ${FULL_IMAGE}
+            echo "Pushed image: ${FULL_IMAGE}"
+          """
+        }
+      }
+    }
+  }
+
+  post {
+    success {
+      echo "Image pushed to ECR: ${ECR_REPO}:${TAG}"
+    }
+    failure {
+      echo "Pipeline failed. Check logs."
+    }
+    always {
+      // optional cleanup
+      sh '''
+        docker image prune -f || true
+      '''
+    }
+  }
+}
+
