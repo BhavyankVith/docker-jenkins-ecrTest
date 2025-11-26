@@ -4,7 +4,7 @@ pipeline {
   environment {
     // Customize these (or set as pipeline/job parameters)
     AWS_REGION      = 'us-east-2'
-    ECR_ACCOUNT_ID  = ''                 // set your AWS account id or pass as parameter
+    ECR_ACCOUNT_ID  = '374073887865'                 // set your AWS account id or pass as parameter
     ECR_REPO        = 'simple-calculator'// desired ECR repo name
     IMAGE_NAME      = "${ECR_REPO}"      // local image name
     TAG             = "${env.BUILD_NUMBER ?: 'latest'}"
