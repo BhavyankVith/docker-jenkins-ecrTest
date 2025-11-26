@@ -13,6 +13,7 @@ pipeline {
   environment {
     AWS_REGION     = 'us-east-2'
     AWS_ACCOUNT_ID = '374073887865'
+    PATH = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
   }
 
   stages {
