@@ -9,6 +9,7 @@ pipeline {
     IMAGE_NAME      = "${ECR_REPO}"      // local image name
     TAG             = "${env.BUILD_NUMBER ?: 'latest'}"
     // ECR registry will be constructed dynamically: <account>.dkr.ecr.<region>.amazonaws.com
+    PATH = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
   }
 
   stages {
