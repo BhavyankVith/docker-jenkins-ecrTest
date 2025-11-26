@@ -3,6 +3,8 @@ pipeline {
 
   environment {
     // Customize these (or set as pipeline/job parameters)
+    AWS_ACCESS_KEY_ID     = credentials('aws-creds')    // Jenkins AWS credential ID
+    AWS_SECRET_ACCESS_KEY = credentials('aws-creds')
     AWS_REGION      = 'us-east-2'
     ECR_ACCOUNT_ID  = '374073887865'                 // set your AWS account id or pass as parameter
     ECR_REPO        = 'simple-calculator'// desired ECR repo name
@@ -10,6 +12,7 @@ pipeline {
     TAG             = "${env.BUILD_NUMBER ?: 'latest'}"
     // ECR registry will be constructed dynamically: <account>.dkr.ecr.<region>.amazonaws.com
     PATH = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
+
   }
 
   stages {
